@@ -1,29 +1,36 @@
 #!/bin/bash
 set -e
 
-echo "🔧 设置构建环境"
+echo "🔧 开始构建流程..."
 
-# 设置 Rust 工具链
-rustup toolchain install nightly-2024-04-20 --profile minimal
-rustup default nightly-2024-04-20
-rustup target add wasm32-unknown-unknown
-
-# 确保 trunk 可用
-if ! command -v trunk &> /dev/null; then
-    echo "📥 下载 Trunk"
-    curl -LsS https://github.com/thedodd/trunk/releases/download/v0.21.14/trunk-x86_64-unknown-linux-gnu.tar.gz | tar -xzf -
-    chmod +x trunk
-    export PATH="$PWD:$PATH"
+# 检查并安装 Rust
+if ! command -v rustc &> /dev/null; then
+    echo "📥 安装 Rust 工具链..."
+    curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --default-toolchain nightly-2024-04-20 --profile minimal
+    source "$HOME/.cargo/env"
+else
+    echo "✅ Rust 已安装: $(rustc --version)"
+    # 确保使用正确的工具链
+    rustup default nightly-2024-04-20
 fi
 
-echo "✅ 环境就绪:"
-echo "   Rust: $(rustc --version)"
-echo "   Trunk: $(trunk --version)"
+# 设置 WASM 目标
+echo "🎯 设置 WASM 目标..."
+rustup target add wasm32-unknown-unknown
+
+# 安装 Trunk
+if ! command -v trunk &> /dev/null; then
+    echo "📥 安装 Trunk..."
+    cargo install trunk --locked
+else
+    echo "✅ Trunk 已安装: $(trunk --version)"
+fi
 
 # 构建客户端
-echo "🏗️  构建客户端"
+echo "🏗️ 切换到 client 目录构建..."
 cd client
 trunk build --release
 
-echo "🎉 构建完成"
+echo "🎉 构建成功！"
+echo "📁 输出文件在: client/dist/"
 ls -la dist/
