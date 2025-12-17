@@ -22,7 +22,6 @@ chmod +x "$BINARY" 2>/dev/null || true
 args=(
     # 必需参数
     "--http-port" "$RENDER_PORT"
-    "--host" "0.0.0.0"
     
     # 性能参数（Render 内存限制优化）
     "--http-bandwidth-limit" "100000"
