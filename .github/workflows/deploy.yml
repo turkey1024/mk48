@@ -26,7 +26,7 @@ jobs:
       - name: Install Rust Toolchain
         uses: dtolnay/rust-toolchain@master
         with:
-          toolchain: nightly-2024-04-20
+          toolchain: nightly-2022-08-14
           components: rust-src, rustfmt, clippy
           targets: wasm32-unknown-unknown, x86_64-unknown-linux-gnu
 
