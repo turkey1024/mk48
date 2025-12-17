@@ -15,7 +15,6 @@ WORKDIR /app
 COPY mk48-linux-x64.tar.gz .
 COPY build.sh .
 COPY start.sh .
-COPY public/ ./
 
 RUN chmod +x build.sh start.sh && \
     ./build.sh
