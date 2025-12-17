@@ -1,75 +1,40 @@
 #!/bin/bash
-set -euo pipefail
+set -e
 
-# ===================== 配置项 =====================
+echo "=== 构建 MK48 服务器 ==="
+
 TAR_FILE="mk48-linux-x64.tar.gz"
-ARTIFACTS_DIR="./mk48_artifacts"
-BIN_DEST="./mk48-plus-bin"        # 注意：二进制文件叫 mk48-plus-bin
-# ==================================================
+ARTIFACTS_DIR="./tmp_artifacts"
+BIN_DEST="./mk48-plus-bin"
 
-echo "===== 检查依赖 ====="
-required_tools=("tar" "chmod")
-for tool in "${required_tools[@]}"; do
-    if ! command -v "$tool" &> /dev/null; then
-        echo "错误：未找到依赖工具 $tool"
-        exit 1
-    fi
-done
+# 检查压缩包
+[ -f "$TAR_FILE" ] || { echo "错误: 未找到 $TAR_FILE"; exit 1; }
 
-echo "===== 检查压缩包 ====="
-if [ ! -f "${TAR_FILE}" ]; then
-    echo "错误：未找到 ${TAR_FILE}"
-    ls -la
-    exit 1
-fi
-echo "✅ 找到压缩包：${TAR_FILE}"
+# 解压
+rm -rf "$ARTIFACTS_DIR"
+mkdir -p "$ARTIFACTS_DIR"
+tar -zxf "$TAR_FILE" -C "$ARTIFACTS_DIR"
 
-echo "===== 初始化临时目录 ====="
-rm -rf "${ARTIFACTS_DIR}"
-mkdir -p "${ARTIFACTS_DIR}"
+# 查找二进制
+BIN_FILE=$(find "$ARTIFACTS_DIR" -type f \( -name "mk48-plus-bin" -o -name "mk48-server" -o -executable \) | head -1)
+[ -z "$BIN_FILE" ] && { echo "错误: 未找到可执行文件"; exit 1; }
 
-echo "===== 解压 ${TAR_FILE} ====="
-tar -zxf "${TAR_FILE}" -C "${ARTIFACTS_DIR}"
+# 复制二进制
+cp "$BIN_FILE" "$BIN_DEST"
+chmod +x "$BIN_DEST"
+echo "✅ 二进制: $BIN_DEST"
 
-echo "===== 查找可执行文件 ====="
-# 先查找 mk48-plus-bin
-BIN_FILE=$(find "${ARTIFACTS_DIR}" -type f -name "mk48-plus-bin" | head -n 1)
-
-# 如果没找到，查找 mk48-server（根据之前的发现）
-if [ -z "${BIN_FILE}" ]; then
-    echo "未找到 mk48-plus-bin，尝试查找 mk48-server"
-    BIN_FILE=$(find "${ARTIFACTS_DIR}" -type f -name "mk48-server" | head -n 1)
-fi
-
-# 兜底：查找任何可执行文件
-if [ -z "${BIN_FILE}" ]; then
-    echo "警告：未找到指定名称，查找所有可执行文件"
-    BIN_FILE=$(find "${ARTIFACTS_DIR}" -type f -executable | head -n 1)
-fi
-
-if [ -z "${BIN_FILE}" ]; then
-    echo "错误：未找到任何可执行文件"
-    echo "解压内容："
-    find "${ARTIFACTS_DIR}" -type f | head -20
-    exit 1
-fi
-
-echo "找到文件：${BIN_FILE}"
-
-# 复制并重命名为 mk48-plus-bin
-cp "${BIN_FILE}" "${BIN_DEST}"
-chmod +x "${BIN_DEST}"
-
-# 复制public目录（前端文件）
-if [ -d "${ARTIFACTS_DIR}/public" ]; then
-    echo "复制前端文件..."
-    cp -r "${ARTIFACTS_DIR}/public" .
+# 复制前端文件（关键！）
+if find "$ARTIFACTS_DIR" -type d -name "public" | grep -q .; then
+    PUBLIC_SRC=$(find "$ARTIFACTS_DIR" -type d -name "public" | head -1)
+    cp -r "$PUBLIC_SRC" .
+    echo "✅ 复制前端: public/ ($(find public -type f 2>/dev/null | wc -l) 文件)"
+else
+    mkdir -p public
+    echo '<html><body><h1>MK48 Server</h1><p>Running</p></body></html>' > public/index.html
+    echo "⚠️  创建了简易 public/index.html"
 fi
 
 # 清理
-rm -rf "${ARTIFACTS_DIR}"
-
-echo "===== 部署完成 ====="
-echo "可执行文件：$(realpath "${BIN_DEST}")"
-echo "文件大小：$(ls -lh "${BIN_DEST}" | awk '{print $5}')"
-echo "前端文件：$(find ./public -type f 2>/dev/null | wc -l) 个"
+rm -rf "$ARTIFACTS_DIR"
+echo "✅ 构建完成"
