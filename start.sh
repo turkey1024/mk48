@@ -37,5 +37,8 @@ for ((i=0; i<${#args[@]}; i+=2)); do
 done
 echo "========================================"
 
+
+./mk48-plus-bin --help  # 应该显示 structopt 生成的帮助
+
 # 执行
 exec "$BINARY" "${args[@]}"
