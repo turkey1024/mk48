@@ -21,21 +21,13 @@ chmod +x "$BINARY" 2>/dev/null || true
 # 构建参数数组
 args=(
     # 必需参数
-    "--https-port" "$RENDER_PORT"
+    "--http-port" "$RENDER_PORT"
     "--host" "0.0.0.0"
-    
-    # 调试日志参数（使用 release 构建的默认值）
-    "--debug-http" "error"      # release 默认
-    "--debug-game" "error"      # release 默认
-    "--debug-plasma" "warn"     # release 默认
-    "--debug-engine" "warn"     # release 默认
     
     # 性能参数（Render 内存限制优化）
     "--http-bandwidth-limit" "100000"
     "--client-authenticate-burst" "5"
     
-    # 可选：如果支持 domain_backup 参数
-    # "--domain-backup" "./domain_backup.json"
 )
 
 echo "🌐 端口: $RENDER_PORT"
