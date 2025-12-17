@@ -29,4 +29,5 @@ exec ./mk48-plus-bin \
     --debug-core error \
     --debug-sockets warn \
     --http-bandwidth-limit 100000 \
+    --ip-address 0.0.0.0 \
     --client-authenticate-burst 5
