@@ -15,7 +15,7 @@ permissions:
 jobs:
   build-and-release-arm64:
     name: Build & Release Package (ARM64)
-    runs-on: ubuntu-latest-8-cores-arm  # 使用 GitHub 的 ARM64 runner
+    runs-on: ubuntu-22.04-arm
 
     steps:
       # 1. 检出代码
