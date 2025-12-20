@@ -1,4 +1,4 @@
-name: Build and Release ARM64
+name: Build and Release ARM64 (Fixed)
 
 on:
   push:
@@ -15,50 +15,73 @@ permissions:
 jobs:
   build-and-release-arm64:
     name: Build & Release Package (ARM64)
-    runs-on: ubuntu-22.04-arm
+    runs-on: ubuntu-22.04-arm  # 使用 ARM64 runner
 
     steps:
       # 1. 检出代码
       - name: Checkout Code
         uses: actions/checkout@v3
 
-      # 2. 安装 Rust 工具链（ARM64 专用）
-      - name: Install Rust Toolchain for ARM64
+      # 2. 安装 Rust 工具链
+      - name: Install Rust Toolchain
         uses: dtolnay/rust-toolchain@master
         with:
           toolchain: nightly-2022-08-14
           components: rust-src, rustfmt, clippy
-          targets: wasm32-unknown-unknown, aarch64-unknown-linux-gnu
+          targets: wasm32-unknown-unknown
 
-      # 3. 安装 Trunk
-      - name: Install Trunk
-        uses: jetli/trunk-action@v0.1.0
+      # 3. 从源码安装 Trunk（关键修改！）
+      - name: Install Trunk from source
+        run: |
+          echo "正在从源码安装 Trunk (ARM64)..."
+          # 安装依赖
+          sudo apt-get update
+          sudo apt-get install -y pkg-config libssl-dev
+          
+          # 安装 trunk
+          cargo install trunk --locked
+          
+          # 验证
+          echo "Trunk 版本:"
+          trunk --version || echo "Trunk 安装失败"
+
+      # 4. 缓存 Cargo 依赖
+      - name: Cache Cargo dependencies
+        uses: actions/cache@v3
         with:
-          version: 'v0.15.0'
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: ${{ runner.os }}-arm64-cargo-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-arm64-cargo-
 
-      # 4. 编译各个组件
+      # 5. 编译客户端
       - name: Build Game Client
         working-directory: ./client
-        run: trunk build --release
+        run: |
+          echo "开始编译客户端..."
+          trunk build --release
+          echo "客户端编译完成"
 
-      - name: Build Server for ARM64
-        run: cargo build --release --manifest-path server/Cargo.toml
+      # 6. 编译服务器
+      - name: Build Server
+        run: |
+          echo "开始编译服务器..."
+          cargo build --release --manifest-path server/Cargo.toml
+          echo "服务器编译完成"
 
-      # 5. 打包整理
+      # 7. 打包（与之前相同）
       - name: Package Artifacts
         run: |
-          echo ">>> 开始整理 ARM64 版本文件..."
+          echo ">>> 开始打包 ARM64 版本..."
           mkdir -p release_package/public
           
-          # === 查找二进制文件 ===
-          echo ">>> 正在查找编译生成的 server 文件..."
-          
-          # 在 target 目录中查找名为 'server' 的可执行文件
+          # 查找 server 二进制文件
           SERVER_PATH=$(find target -name "server" -type f -executable | head -n 1)
-          
-          # 如果在根目录 target 没找到，尝试在子目录找 (容错)
           if [ -z "$SERVER_PATH" ]; then
-             SERVER_PATH=$(find server/target -name "server" -type f -executable 2>/dev/null | head -n 1)
+            SERVER_PATH=$(find server/target -name "server" -type f -executable 2>/dev/null | head -n 1)
           fi
 
           if [ -n "$SERVER_PATH" ]; then
@@ -66,8 +89,7 @@ jobs:
             cp "$SERVER_PATH" release_package/mk48-server
             chmod +x release_package/mk48-server
           else
-            echo "❌ 错误：无法找到名为 'server' 的可执行文件！"
-            echo ">>> 正在列出 target 目录结构帮助排查："
+            echo "❌ 错误：无法找到 server 可执行文件"
             find target -maxdepth 3 -not -path '*/deps/*'
             exit 1
           fi
@@ -75,13 +97,13 @@ jobs:
           # 复制客户端资源
           cp -r client/dist/* release_package/public/
           
-          # 压缩，文件名包含 ARM64 架构标志
+          # 打包
           PACKAGE_NAME="mk48-linux-aarch64.tar.gz"
           tar -czvf "$PACKAGE_NAME" -C release_package .
-          echo ">>> ARM64 打包完成: $PACKAGE_NAME"
+          echo "✅ ARM64 打包完成: $PACKAGE_NAME"
 
-      # 6. 发布 Release（如果是 tag 触发）
-      - name: Create GitHub Release (ARM64)
+      # 8. 发布 Release
+      - name: Create GitHub Release
         uses: softprops/action-gh-release@v1
         if: startsWith(github.ref, 'refs/tags/')
         with:
@@ -90,33 +112,11 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      # 7. 手动测试上传
-      - name: Upload ARM64 Artifact
+      # 9. 手动测试上传
+      - name: Upload Artifact
         if: github.event_name == 'workflow_dispatch'
         uses: actions/upload-artifact@v4
         with:
-          name: mk48-arm64-debug-build
+          name: mk48-arm64-build
           path: mk48-linux-aarch64.tar.gz
           retention-days: 3
-
-      # 8. 推送产物到仓库根目录
-      - name: Push ARM64 Artifact to Repository Root
-        run: |
-          # 配置git用户信息
-          git config --global user.name "GitHub Actions"
-          git config --global user.email "actions@github.com"
-          
-          # 检查是否有文件变更
-          if git status --porcelain | grep -q "mk48-linux-aarch64.tar.gz"; then
-            # 添加文件到暂存区
-            git add mk48-linux-aarch64.tar.gz
-            # 提交变更
-            git commit -m "chore: upload mk48-linux-aarch64.tar.gz (ARM64) to repo root [skip ci]"
-            # 推送到仓库
-            git push origin main
-            echo "✅ 成功将 mk48-linux-aarch64.tar.gz (ARM64) 推送到仓库根目录"
-          else
-            echo "ℹ️ mk48-linux-aarch64.tar.gz 无变更，无需推送"
-          fi
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
