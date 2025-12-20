@@ -16,10 +16,6 @@ if [ ! -d "public" ]; then
     echo "⚠️  创建了简易 public/"
 fi
 
-# 环境变量（避免重定向循环）
-export HTTP_X_FORWARDED_PROTO=https
-export RENDER_EXTERNAL_HOSTNAME="turkey-mk.onrender.com"
-
 # 启动
 exec ./mk48-plus-bin \
     --http-port "$PORT" \
@@ -30,4 +26,4 @@ exec ./mk48-plus-bin \
     --debug-sockets warn \
     --http-bandwidth-limit 100000 \
     --ip-address 0.0.0.0 \
-    --client-authenticate-burst 5
+    --client-authenticate-burst 10
