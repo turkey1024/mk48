@@ -20,7 +20,7 @@ RUN chmod +x build.sh start.sh && \
     ./build.sh
 
 
-ENV PORT=8443
+ENV PORT=8080
 EXPOSE $PORT
 
 CMD ["./start.sh"]
