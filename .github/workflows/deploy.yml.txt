@@ -1,0 +1,127 @@
+name: Build and Release
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+
+env:
+  CARGO_TERM_COLOR: always
+
+permissions:
+  contents: write
+
+jobs:
+  build-and-release:
+    name: Build & Release Package
+    runs-on: ubuntu-latest
+
+    steps:
+      # 1. 检出代码
+      - name: Checkout Code
+        uses: actions/checkout@v3
+
+      # 4. 安装 Rust（替换为 dtolnay/rust-toolchain）
+      - name: Install Rust Toolchain
+        uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: nightly-2022-08-14
+          components: rust-src, rustfmt, clippy
+          targets: wasm32-unknown-unknown, x86_64-unknown-linux-gnu
+
+      # 5. 安装 Trunk
+      - name: Install Trunk
+        uses: jetli/trunk-action@v0.1.0
+        with:
+          version: 'v0.15.0'
+
+      # 6. 编译各个组件（移除了重复的 rustup target add，因为上面已通过 targets 参数添加）
+      - name: Build Game Client
+        working-directory: ./client
+        run: trunk build --release
+
+      - name: Build Server
+        run: cargo build --release --manifest-path server/Cargo.toml
+
+      # 7. 打包整理 (智能查找版)
+      - name: Package Artifacts
+        run: |
+          echo ">>> 开始整理文件..."
+          mkdir -p release_package/public
+    
+          
+          # === 关键修改：智能查找二进制文件 ===
+          echo ">>> 正在查找编译生成的 server 文件..."
+          
+          # 在 target 目录中查找名为 'server' 的可执行文件
+          # -type f: 找文件
+          # -not -name "*.*": 排除 .d .rlib 等后缀文件
+          SERVER_PATH=$(find target -name "server" -type f -executable | head -n 1)
+          
+          # 如果在根目录 target 没找到，尝试在子目录找 (容错)
+          if [ -z "$SERVER_PATH" ]; then
+             SERVER_PATH=$(find server/target -name "server" -type f -executable 2>/dev/null | head -n 1)
+          fi
+
+          if [ -n "$SERVER_PATH" ]; then
+            echo "✅ 找到服务端文件: $SERVER_PATH"
+            cp "$SERVER_PATH" release_package/mk48-server
+            chmod +x release_package/mk48-server
+          else
+            echo "❌ 错误：无法找到名为 'server' 的可执行文件！"
+            echo ">>> 正在列出 target 目录结构帮助排查："
+            find target -maxdepth 3 -not -path '*/deps/*'
+            exit 1
+          fi
+          # ==========================================
+          
+          # 复制客户端资源
+          cp -r client/dist/* release_package/public/
+          
+          # 复制管理后台资源
+          
+          
+          # 压缩
+          tar -czvf mk48-linux-x64.tar.gz -C release_package .
+          echo ">>> 打包完成: mk48-linux-x64.tar.gz"
+
+      # 8. 发布 Release
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v1
+        if: startsWith(github.ref, 'refs/tags/')
+        with:
+          files: mk48-linux-x64.tar.gz
+          generate_release_notes: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      # 9. 手动测试上传
+      - name: Upload Artifact
+        if: github.event_name == 'workflow_dispatch'
+        uses: actions/upload-artifact@v4
+        with:
+          name: mk48-debug-build
+          path: mk48-linux-x64.tar.gz
+          retention-days: 3
+
+      - name: Push Artifact to Repository Root
+        run: |
+          # 配置git用户信息（Action执行的身份）
+          git config --global user.name "GitHub Actions"
+          git config --global user.email "actions@github.com"
+          
+          # 检查是否有文件变更
+          if git status --porcelain | grep -q "mk48-linux-x64.tar.gz"; then
+            # 添加文件到暂存区
+            git add mk48-linux-x64.tar.gz
+            # 提交变更
+            git commit -m "chore: upload mk48-linux-x64.tar.gz to repo root [skip ci]"
+            # 推送到仓库（使用GITHUB_TOKEN鉴权）
+            git push origin main  # 分支名根据你的仓库主分支修改（如master）
+            echo "✅ 成功将 mk48-linux-x64.tar.gz 推送到仓库根目录"
+          else
+            echo "ℹ️ mk48-linux-x64.tar.gz 无变更，无需推送"
+          fi
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
