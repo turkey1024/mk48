@@ -1,61 +1,82 @@
 #!/bin/bash
 set -e
 
-echo "=== 启动 MK48 HTTPS 服务器 ==="
+echo "=== 启动 MK48 服务器 ==="
+PORT=${PORT:-8080}
+echo "端口: $PORT"
 
-# 使用 Render 分配的端口
-PORT=${PORT:-8443}
-echo "HTTPS 端口: $PORT"
-
-# 证书路径
-CERT_PATH="/app/certs/fullchain.pem"
-KEY_PATH="/app/certs/privkey.pem"
-
-echo "证书路径: $CERT_PATH"
-echo "私钥路径: $KEY_PATH"
-
-# 检查证书是否存在
-if [ ! -f "$CERT_PATH" ] || [ ! -f "$KEY_PATH" ]; then
-    echo "❌ 错误: 证书文件缺失"
-    echo "当前证书目录内容:"
-    ls -la /app/certs/ 2>/dev/null || echo "证书目录不存在"
-    exit 1
-fi
-
-echo "✅ 证书文件正常"
-
-# 显示证书信息
-echo "🔐 证书主题:"
-openssl x509 -in "$CERT_PATH" -noout -subject 2>/dev/null || echo "无法读取证书"
+# 设置环境变量（解决 CA 证书问题）
+export SSL_CERT_FILE=/etc/ssl/certs/ca-certificates.crt
+export SSL_CERT_DIR=/etc/ssl/certs
+export RUST_BACKTRACE=1
 
 # 检查可执行文件
-if [ ! -f "./mk48-plus-bin" ]; then
-    echo "❌ 错误: 未找到 mk48-plus-bin"
-    exit 1
-fi
+[ -f "./mk48-plus-bin" ] || { echo "错误: 无 mk48-plus-bin"; exit 1; }
 chmod +x ./mk48-plus-bin 2>/dev/null || true
 
-# 创建必要的目录（如果不存在）
+# 关键：创建健康检查端点
 mkdir -p public
-if [ ! -f "public/index.html" ]; then
-    echo '<!DOCTYPE html><html><head><title>MK48 HTTPS Server</title></head><body><h1>MK48 Game Server</h1><p>Running with HTTPS</p></body></html>' > public/index.html
-fi
 
-# 创建健康检查端点
-echo "OK" > public/health
+# 1. /health - 纯文本 200 响应（Render 健康检查用）
+cat > public/health << 'EOF'
+HTTP/1.1 200 OK
+Content-Type: text/plain
+Content-Length: 2
 
-echo "🚀 启动命令:"
-echo "./mk48-plus-bin --http-port $PORT --certificate-path $CERT_PATH --private-key-path $KEY_PATH --ip-address 0.0.0.0 --debug-http info"
+OK
+EOF
 
-# 启动 MK48 HTTPS 服务
+# 2. /healthz - JSON 格式的健康检查（常用标准）
+cat > public/healthz << 'EOF'
+{
+  "status": "healthy",
+  "service": "mk48",
+  "timestamp": "2024-12-21T05:00:00Z",
+  "version": "1.0"
+}
+EOF
+
+# 3. 根路径 - 简单 HTML 页面
+cat > public/index.html << 'EOF'
+<!DOCTYPE html>
+<html>
+<head>
+    <title>MK48 Game Server</title>
+    <style>
+        body { font-family: sans-serif; margin: 40px; line-height: 1.6; }
+        h1 { color: #333; }
+        .status { color: green; font-weight: bold; }
+        pre { background: #f5f5f5; padding: 10px; border-radius: 5px; }
+    </style>
+</head>
+<body>
+    <h1>🎮 MK48 Game Server</h1>
+    <p>Status: <span class="status">RUNNING</span></p>
+    <p>Health endpoints:</p>
+    <ul>
+        <li><a href="/health">/health</a> - Plain text (Render check)</li>
+        <li><a href="/healthz">/healthz</a> - JSON format</li>
+    </ul>
+    <hr>
+    <p><small>Connect via game client to play!</small></p>
+</body>
+</html>
+EOF
+
+echo "✅ 健康检查端点已创建:"
+echo "   /health  - 纯文本 200 OK"
+echo "   /healthz - JSON 格式"
+echo "   /index.html - 状态页面"
+
+# 启动 MK48
+echo "🚀 启动 MK48 服务器..."
 exec ./mk48-plus-bin \
     --http-port "$PORT" \
-    --certificate-path "$CERT_PATH" \
-    --private-key-path "$KEY_PATH" \
-    --ip-address "0.0.0.0" \
     --server-id 1 \
     --debug-http info \
     --debug-game warn \
-    --database-read-only \
-    --max-bots 0 \
-    --http-bandwidth-limit 100000
+    --debug-core error \
+    --debug-sockets warn \
+    --http-bandwidth-limit 100000 \
+    --ip-address 0.0.0.0 \
+    --client-authenticate-burst 10
