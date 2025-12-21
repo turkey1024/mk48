@@ -21,4 +21,5 @@ export SSL_CERT_FILE=/etc/ssl/certs/ca-certificates.crt
 exec ./mk48-plus-bin \
     --http-port "$PORT" \
     --ip-address "0.0.0.0" \
+    --max-bots 0 \
     --debug-http info

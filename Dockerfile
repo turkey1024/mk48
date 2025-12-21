@@ -17,7 +17,7 @@ RUN chmod +x build.sh start.sh && \
 
 # 关键修改：EXPOSE 一个具体的数字（如8080），或者完全去掉
 # 方案A：写一个你应用常用的端口（仅作文档说明）
-EXPOSE 8080
+EXPOSE 8443
 
 # 方案B：直接注释掉（Render 不依赖这个）
 # EXPOSE
