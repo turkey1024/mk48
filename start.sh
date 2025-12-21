@@ -56,4 +56,6 @@ exec ./mk48-plus-bin \
     --server-id 1 \
     --debug-http info \
     --debug-game warn \
+    --database-read-only \
+    --max-bots 0 \
     --http-bandwidth-limit 100000
