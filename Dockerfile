@@ -2,9 +2,9 @@ FROM ubuntu:22.04
 
 # 关键：先安装 ca-certificates，这是原始能工作的配置
 RUN apt-get update && apt-get install -y \
-    ca-certificates \      # 修复 CA 证书问题
+    ca-certificates \
     libssl3 \
-    nginx \                # 添加 nginx 解决重定向
+    nginx \
     && rm -rf /var/lib/apt/lists/*
 
 # 更新 CA 证书
