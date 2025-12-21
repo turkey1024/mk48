@@ -1,43 +1,38 @@
 #!/bin/bash
 set -e
 
-echo "=== 启动 MK48 HTTPS 服务器 ==="
+echo "=== 启动 MK48 HTTP 服务器 ==="
+PORT=${PORT:-8080}
+echo "端口: $PORT"
 
-# 硬编码端口
-HTTPS_PORT=8443
-echo "内部 HTTPS 端口: $HTTPS_PORT"
+# 必要检查
+[ -f "./mk48-plus-bin" ] || { echo "错误: 无 mk48-plus-bin"; exit 1; }
+chmod +x ./mk48-plus-bin 2>/dev/null || true
 
-# 检查文件
-if [ ! -f "./mk48-plus-bin" ]; then
-    echo "错误: 无 mk48-plus-bin"
-    exit 1
+# 前端检查
+if [ ! -d "public" ]; then
+    mkdir -p public
+    echo '<!DOCTYPE html><html><head><title>MK48 HTTP Server</title></head><body><h1>MK48 Game Server</h1><p>Running in HTTP mode</p></body></html>' > public/index.html
+    echo "创建了简易 public/index.html"
 fi
 
-# 证书检查
-CERT_PATH="/app/certs/fullchain.pem"
-KEY_PATH="/app/certs/privkey.pem"
-
-if [ ! -f "$CERT_PATH" ]; then
-    echo "错误: 无证书 $CERT_PATH"
-    exit 1
-fi
-
-if [ ! -f "$KEY_PATH" ]; then
-    echo "错误: 无私钥 $KEY_PATH"
-    exit 1
-fi
-
-echo "找到证书文件"
-
-# 创建健康检查文件
-mkdir -p public
+# 创建健康检查文件（给直接访问用）
 echo "OK" > public/healthz
 
-# 启动
+# 设置环境变量，防止 MK48 内部重定向
+export MK48_NO_REDIRECT=1
+export DISABLE_SSL_REDIRECT=true
+
+echo "启动命令: ./mk48-plus-bin --http-port $PORT --ip-address 0.0.0.0 --debug-http info"
+
+# 启动 - 纯 HTTP，无证书参数
 exec ./mk48-plus-bin \
-    --http-port "$HTTPS_PORT" \
-    --certificate-path "$CERT_PATH" \
-    --private-key-path "$KEY_PATH" \
-    --ip-address "0.0.0.0" \
+    --http-port "$PORT" \
     --server-id 1 \
-    --debug-http info
+    --debug-http info \
+    --debug-game info \
+    --debug-core error \
+    --debug-sockets warn \
+    --http-bandwidth-limit 100000 \
+    --ip-address 0.0.0.0 \
+    --client-authenticate-burst 10
