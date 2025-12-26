@@ -10,6 +10,6 @@ exec ./mk48-plus-bin \
     --max-bots 0 \
     --http-bandwidth-limit 1000000 \
     --http-bandwidth-burst 1000000 \
-    --certificate-path cert.pem \
-    --private-key-path key.pem \
+    --certificate-path /etc/letsencrypt/live/jn.k.vu/fullchain.pem \
+    --private-key-path /etc/letsencrypt/live/jn.k.vu/privkey.pem	 \
     --debug-http info
