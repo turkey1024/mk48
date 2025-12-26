@@ -84,21 +84,18 @@ impl GameArenaService for Server {
     ) {
         let mut player = player_tuple.borrow_player_mut();
         player.data.flags.left_game = false;
-        
-        // 移除调试标记，确保在发布模式下也设置初始分数
-        use common::entity::EntityData;
-        use common::util::level_to_score;
-        use rand::{thread_rng, Rng};
-        let highest_level_score = level_to_score(EntityData::MAX_BOAT_LEVEL);
-        
-        // 设置初始分数为 99999999
-        const INITIAL_SCORE: u32 = 99999999;
-        
-        player.score = if player.is_bot() {
-            thread_rng().gen_range(0..=highest_level_score) // 机器人随机分数
-        } else {
-            INITIAL_SCORE // 人类玩家固定分数 99999999
-        };
+        #[cfg(debug_assertions)]
+        {
+            use common::entity::EntityData;
+            //use common::util::level_to_score;
+            use rand::{thread_rng, Rng};
+            let highest_level_score = level_to_score(EntityData::MAX_BOAT_LEVEL);
+            player.score = if player.is_bot() {
+                thread_rng().gen_range(0..=highest_level_score)
+            } else {
+                highest_level_score
+            };
+        }
     }
 
     fn player_command(
@@ -252,4 +249,3 @@ impl GameArenaService for Server {
         self.world.terrain.post_update();
     }
 }
-
